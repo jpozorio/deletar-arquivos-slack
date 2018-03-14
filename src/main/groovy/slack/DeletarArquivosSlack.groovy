@@ -24,6 +24,10 @@ class DeletarArquivosSlack {
 
 		println("Foram encontrados ${usuarios.size()} no seu slack")
 
+		Date data = new Date()
+		long toTime = (data - 30).time
+		String ts_to = toTime.toString().substring(0, 10)
+
 		usuarios.each { Map usuario ->
 			println("Buscando arquivos do usuário ${usuario.real_name}")
 			String token_current_user = token_users[usuario.name]
@@ -33,6 +37,7 @@ class DeletarArquivosSlack {
 			URIBuilder uri_builder = new URIBuilder(url_list_files)
 			uri_builder.addQueryParam('user', usuario.id)
 			uri_builder.addQueryParam('token', token_current_user)
+			uri_builder.addQueryParam('ts_to', ts_to)
 			uri_builder.addQueryParam('pretty', '1')
 
 			response = (HttpResponseDecorator) http_builder.request(uri_builder, Method.GET, ContentType.ANY) {}
