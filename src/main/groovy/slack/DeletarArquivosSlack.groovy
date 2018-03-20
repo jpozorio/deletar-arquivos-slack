@@ -1,8 +1,8 @@
 package slack
 
-//import groovy.transform.CompileStatic
 import groovyx.net.http.*
 
+//import groovy.transform.CompileStatic
 //@CompileStatic
 class DeletarArquivosSlack {
 
@@ -29,8 +29,12 @@ class DeletarArquivosSlack {
 		String ts_to = toTime.toString().substring(0, 10)
 
 		usuarios.each { Map usuario ->
-			println("Buscando arquivos do usuário ${usuario.real_name}")
+			println("Buscando arquivos do usuário ${usuario.real_name ?: usuario.name}")
 			String token_current_user = token_users[usuario.name]
+			if (!token_current_user) {
+				println("Usuário ${usuario.name} não possui token disponível")
+				return
+			}
 
 			Set<String> file_ids_current_user = []
 
@@ -43,6 +47,14 @@ class DeletarArquivosSlack {
 			response = (HttpResponseDecorator) http_builder.request(uri_builder, Method.GET, ContentType.ANY) {}
 			Map mapa_response = ((Map) response.data)
 
+			if (mapa_response.error == 'token_revoked') {
+				println("Token do usuário ${usuario.name} foi revogado")
+				return
+			} else if (!mapa_response.paging) {
+				println("Houve algum erro não tratado ${mapa_response.toString()}")
+				return
+			}
+
 			mapa_response.files.each { Map file ->
 				file_ids_current_user.add(file.id)
 			}
@@ -53,7 +65,9 @@ class DeletarArquivosSlack {
 			println("Este usuário possui ${total} arquivos")
 
 			for (int i = 1; i <= number_pages; i++) {
-				uri_builder.removeQueryParam('page')
+				if (uri_builder.hasQueryParam('page')) {
+					uri_builder.removeQueryParam('page')
+				}
 				uri_builder.addQueryParam('page', i)
 
 				response = (HttpResponseDecorator) http_builder.request(uri_builder, Method.GET, ContentType.ANY) {}
@@ -66,13 +80,25 @@ class DeletarArquivosSlack {
 
 			println("Iniciando deleção dos arquivos do usuário ${usuario.real_name}")
 			uri_builder = new URIBuilder(url_delete_file)
-			file_ids_current_user.eachWithIndex { String file_id, int idx ->
-				uri_builder.addQueryParam('file', file_id)
-				uri_builder.addQueryParam('token', token_current_user)
+			uri_builder.addQueryParam('token', token_current_user)
 
-				response = (HttpResponseDecorator) http_builder.request(uri_builder, Method.POST, ContentType.ANY) {}
+			file_ids_current_user.eachWithIndex { String file_id, int idx ->
+				try {
+					if (uri_builder.hasQueryParam('file')) {
+						uri_builder.removeQueryParam('file')
+					}
+				} catch (Exception ignored) {
+
+				}
+				uri_builder.addQueryParam('file', file_id)
+
+				try {
+					response = (HttpResponseDecorator) http_builder.request(uri_builder, Method.POST, ContentType.ANY) {}
+				} catch (Exception e) {
+					println(e)
+				}
 				mapa_response = ((Map) response.data)
-				if (idx % 20) {
+				if (idx % 20 == 0) {
 					println("Deletados ${idx} arquivos deste usuário até o momento")
 				}
 			}
