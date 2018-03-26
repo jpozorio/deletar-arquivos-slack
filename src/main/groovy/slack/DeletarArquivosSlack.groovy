@@ -12,7 +12,11 @@ class DeletarArquivosSlack {
 	void deletar() {
 		HTTPBuilder http_builder = new RESTClient()
 
-		Map<String, String> token_users = ['': '']
+		File fileTokens = new File('/home/zeroglosa/.IntelliJIdea2017.2/config/scratches/scratch.txt')
+		Map<String, String> token_users = fileTokens.text.readLines().collectEntries { String linha ->
+			String[] partes = linha.split('\t')
+			return [(partes[0]), partes[2]]
+		}
 
 		String url_list_users = 'https://slack.com/api/users.list?token=' + ADMIN_TOKEN + '&pretty=1'
 		String url_list_files = 'https://slack.com/api/files.list'
