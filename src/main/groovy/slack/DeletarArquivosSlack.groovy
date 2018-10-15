@@ -7,12 +7,16 @@ import groovyx.net.http.*
 class DeletarArquivosSlack {
 
 	private static Integer FILES_PAGE_SIZE = 100
-	private String ADMIN_TOKEN = ''
+	private String ADMIN_TOKEN
 
 	void deletar() {
+		long total_liberado = 0
 		HTTPBuilder http_builder = new RESTClient()
 
-		File fileTokens = new File('/home/zeroglosa/.IntelliJIdea2017.2/config/scratches/scratch.txt')
+		File adminToken = new File('/media/WORK/temp/deletar-arquivos-slack/src/main/groovy/slack/adm_token')
+		ADMIN_TOKEN = adminToken.text
+
+		File fileTokens = new File('/media/WORK/temp/deletar-arquivos-slack/src/main/groovy/slack/tokens.txt')
 		Map<String, String> token_users = fileTokens.text.readLines().collectEntries { String linha ->
 			String[] partes = linha.split('\t')
 			return [(partes[0]), partes[2]]
@@ -26,17 +30,21 @@ class DeletarArquivosSlack {
 
 		List<Map> usuarios = ((Map) response.data).members
 
-		println("Foram encontrados ${usuarios.size()} no seu slack")
+		println("Foram encontrados ${usuarios.size()} usuários no seu slack")
 
 		Date data = new Date()
-		long toTime = (data - 30).time
+		long toTime = (data - 15).time
 		String ts_to = toTime.toString().substring(0, 10)
 
 		usuarios.each { Map usuario ->
 			println("Buscando arquivos do usuário ${usuario.real_name ?: usuario.name}")
 			String token_current_user = token_users[usuario.name]
 			if (!token_current_user) {
-				println("Usuário ${usuario.name} não possui token disponível")
+				if (usuario.deleted) {
+					println("Usuário ${usuario.name} foi removido do slack")
+				} else {
+					println("Usuário ${usuario.name} não possui token disponível")
+				}
 				return
 			}
 
@@ -65,9 +73,10 @@ class DeletarArquivosSlack {
 
 			Integer total = mapa_response.paging.total
 
-			Integer number_pages = total / FILES_PAGE_SIZE
+			Integer number_pages = (total / FILES_PAGE_SIZE) + 1
 			println("Este usuário possui ${total} arquivos")
 
+			long size_this_user = 0
 			for (int i = 1; i <= number_pages; i++) {
 				if (uri_builder.hasQueryParam('page')) {
 					uri_builder.removeQueryParam('page')
@@ -78,10 +87,13 @@ class DeletarArquivosSlack {
 				mapa_response = ((Map) response.data)
 
 				mapa_response.files.each { Map file ->
+					total_liberado += file.size
+					size_this_user += file.size
 					file_ids_current_user.add(file.id)
 				}
 			}
-
+			println("Serão liberados ${humanReadableByteCount(size_this_user)} deste usuário")
+			println("Foram encontrados ${file_ids_current_user.size()} arquivos para o usuário")
 			println("Iniciando deleção dos arquivos do usuário ${usuario.real_name}")
 			uri_builder = new URIBuilder(url_delete_file)
 			uri_builder.addQueryParam('token', token_current_user)
@@ -92,7 +104,7 @@ class DeletarArquivosSlack {
 						uri_builder.removeQueryParam('file')
 					}
 				} catch (Exception ignored) {
-
+					println()
 				}
 				uri_builder.addQueryParam('file', file_id)
 
@@ -107,7 +119,14 @@ class DeletarArquivosSlack {
 				}
 			}
 		}
+		println("Foram liberados ${humanReadableByteCount(total_liberado)}")
 	}
 
-
+	String humanReadableByteCount(long bytes) {
+		int unit = 1024;
+		if (bytes < unit) return bytes + " B";
+		int exp = (int) (Math.log(bytes) / Math.log(unit));
+		String pre = ('kMGTPE').charAt(exp - 1)
+		return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
+	}
 }
