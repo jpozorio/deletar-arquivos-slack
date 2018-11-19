@@ -58,7 +58,7 @@ dependencies {
 	testRuntime "org.seleniumhq.selenium:selenium-htmlunit-driver:2.47.1"
 	testRuntime "net.sourceforge.htmlunit:htmlunit:2.18"
 
-	compile group: 'org.codehaus.groovy.modules.http-builder', name: 'http-builder', version: '0.7-RC1'
+	compile group: 'org.codehaus.groovy.modules.http-builder', name: 'http-builder', version: '0.7'
 
 }
 

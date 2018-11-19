@@ -28,7 +28,8 @@ class DeletarArquivosSlack {
 
 		HttpResponseDecorator response = (HttpResponseDecorator) http_builder.request(url_list_users, Method.GET, ContentType.ANY) {}
 
-		List<Map> usuarios = ((Map) response.data).members
+		List<Map> usuarios = ((Map) response.data).members.sort { Map usuario -> usuario.real_name ?: usuario.name }
+        int maxSizeName = usuarios.collect { Map usuario -> (usuario.real_name ?: usuario.name).toString().size() }.max()
 
 		println("Foram encontrados ${usuarios.size()} usuários no seu slack")
 
@@ -36,14 +37,15 @@ class DeletarArquivosSlack {
 		long toTime = (data - 15).time
 		String ts_to = toTime.toString().substring(0, 10)
 
-		usuarios.each { Map usuario ->
-			println("Buscando arquivos do usuário ${usuario.real_name ?: usuario.name}")
+		usuarios.eachWithIndex { Map usuario, int idxUsuario ->
+            String prefix = "(${idxUsuario + 1}/${usuarios.size()}) [${(usuario.real_name ?: usuario.name).toString().padRight(maxSizeName)}]"
+			println("${prefix} Buscando arquivos do usuário")
 			String token_current_user = token_users[usuario.name]
 			if (!token_current_user) {
 				if (usuario.deleted) {
-					println("Usuário ${usuario.name} foi removido do slack")
+					println("${prefix} foi removido do slack")
 				} else {
-					println("Usuário ${usuario.name} não possui token disponível")
+					println("${prefix} não possui token disponível")
 				}
 				return
 			}
@@ -60,7 +62,7 @@ class DeletarArquivosSlack {
 			Map mapa_response = ((Map) response.data)
 
 			if (mapa_response.error == 'token_revoked') {
-				println("Token do usuário ${usuario.name} foi revogado")
+				println("${prefix} Token do usuário foi revogado")
 				return
 			} else if (!mapa_response.paging) {
 				println("Houve algum erro não tratado ${mapa_response.toString()}")
@@ -74,7 +76,7 @@ class DeletarArquivosSlack {
 			Integer total = mapa_response.paging.total
 
 			Integer number_pages = (total / FILES_PAGE_SIZE) + 1
-			println("Este usuário possui ${total} arquivos")
+			println("${prefix} possui ${total} arquivos")
 
 			long size_this_user = 0
 			for (int i = 1; i <= number_pages; i++) {
@@ -92,13 +94,13 @@ class DeletarArquivosSlack {
 					file_ids_current_user.add(file.id)
 				}
 			}
-			println("Serão liberados ${humanReadableByteCount(size_this_user)} deste usuário")
-			println("Foram encontrados ${file_ids_current_user.size()} arquivos para o usuário")
-			println("Iniciando deleção dos arquivos do usuário ${usuario.real_name}")
+            println(prefix + " serão liberados ${humanReadableByteCount(size_this_user)} deste usuário")
+			println("${prefix} foram encontrados ${file_ids_current_user.size()} arquivos")
+			println("${prefix} Iniciando deleção dos arquivos")
 			uri_builder = new URIBuilder(url_delete_file)
 			uri_builder.addQueryParam('token', token_current_user)
 
-			file_ids_current_user.eachWithIndex { String file_id, int idx ->
+			file_ids_current_user.eachWithIndex { String file_id, int idxFiles ->
 				try {
 					if (uri_builder.hasQueryParam('file')) {
 						uri_builder.removeQueryParam('file')
@@ -114,8 +116,8 @@ class DeletarArquivosSlack {
 					println(e)
 				}
 				mapa_response = ((Map) response.data)
-				if (idx % 20 == 0) {
-					println("Deletados ${idx} arquivos deste usuário até o momento")
+				if (idxFiles % 20 == 0) {
+					println("${prefix} deletados ${idxFiles} arquivos até o momento")
 				}
 			}
 		}
