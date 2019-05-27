@@ -2,14 +2,13 @@ package slack
 
 import groovyx.net.http.*
 
-//import groovy.transform.CompileStatic
-//@CompileStatic
 class DeletarArquivosSlack {
 
 	private static Integer FILES_PAGE_SIZE = 100
 	private String ADMIN_TOKEN
 
 	void deletar() {
+		List<String> specific_users = [''].findAll() //preencher nome dos usuários se desejar apagar TODOS os arquivos deles
 		long total_liberado = 0
 		HTTPBuilder http_builder = new RESTClient()
 
@@ -29,16 +28,22 @@ class DeletarArquivosSlack {
 		HttpResponseDecorator response = (HttpResponseDecorator) http_builder.request(url_list_users, Method.GET, ContentType.ANY) {}
 
 		List<Map> usuarios = ((Map) response.data).members.sort { Map usuario -> usuario.real_name ?: usuario.name }
-        int maxSizeName = usuarios.collect { Map usuario -> (usuario.real_name ?: usuario.name).toString().size() }.max()
+		int maxSizeName = usuarios.collect { Map usuario -> (usuario.real_name ?: usuario.name).toString().size() }.max()
 
 		println("Foram encontrados ${usuarios.size()} usuários no seu slack")
 
 		Date data = new Date()
 		long toTime = (data - 15).time
+		if (specific_users) {
+			toTime = data.time
+		}
 		String ts_to = toTime.toString().substring(0, 10)
 
 		usuarios.eachWithIndex { Map usuario, int idxUsuario ->
-            String prefix = "(${idxUsuario + 1}/${usuarios.size()}) [${(usuario.real_name ?: usuario.name).toString().padRight(maxSizeName)}]"
+			if (specific_users && !specific_users.contains(usuario.name)) {
+				return
+			}
+			String prefix = "(${idxUsuario + 1}/${usuarios.size()}) [${(usuario.real_name ?: usuario.name).toString().padRight(maxSizeName)}]"
 			println("${prefix} Buscando arquivos do usuário")
 			String token_current_user = token_users[usuario.name]
 			if (!token_current_user) {
@@ -94,7 +99,7 @@ class DeletarArquivosSlack {
 					file_ids_current_user.add(file.id)
 				}
 			}
-            println(prefix + " serão liberados ${humanReadableByteCount(size_this_user)} deste usuário")
+			println(prefix + " serão liberados ${humanReadableByteCount(size_this_user)} deste usuário")
 			println("${prefix} foram encontrados ${file_ids_current_user.size()} arquivos")
 			println("${prefix} Iniciando deleção dos arquivos")
 			uri_builder = new URIBuilder(url_delete_file)
